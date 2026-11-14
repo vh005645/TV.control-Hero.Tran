@@ -57,6 +57,7 @@ public class TvActivity extends Activity {
             b.append("Hẹn giờ: sẽ khóa/tắt TV lúc ").append(new java.text.SimpleDateFormat("HH:mm").format(new java.util.Date(end))).append("\n");
         else b.append("Hẹn giờ: không giới hạn thời gian xem TV\n");
         b.append("Tắt nguồn TV (ADB nội bộ): ").append(TvService.powerMsg.isEmpty() ? "chưa kiểm tra - bấm nút \"Kiểm tra quyền tắt nguồn\"" : TvService.powerMsg).append("\n");
+        if (TvService.msgOn) b.append("Đang hiển thị tin nhắn\n");
         b.append("\nCài đặt TV luôn mở, không bị chặn.\n");
         if (!en) {
             b.append("\nBật nhanh nhất - chạy ADB trên máy tính (1 lần, sau đó app tự bật mỗi khi mở/khởi động TV):\n");

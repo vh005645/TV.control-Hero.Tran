@@ -1,0 +1,24 @@
+TV Guard - App 1 - v1.28 - SUA LOI BUILD (GitHub Actions)
+========================================================
+v1.27 build loi, chi dung 1 cho:
+
+  WatchLog.java:84: error: unclosed string literal
+      if (sb.length() > 0) sb.append("
+  WatchLog.java:85: error: unclosed string literal
+
+Nguyen nhan: trong WatchLog.java, dong
+    sb.append("\n");
+bi ghi thanh dau xuong dong THAT nam trong "..." thay vi ky tu
+thoat \n, nen javac hieu la chuoi chua dong ngoac.
+Da sua thanh dung:
+    sb.append("\n");
+
+Khong doi gi khac so voi v1.27 (package vn.herotran.tvcontrol,
+giao dien giong app 2, bo chan Cai dat TV, bo Cong them,
+man hinh khoa "Het gio xem TV !", Nhat ky xem TV hom nay...).
+Chi nang versionCode 29 / versionName 1.28 de phan biet ban da sua.
+
+Cach day len GitHub: thay TOAN BO file bang zip v1.28 nay (hoac neu
+chi sua tay tren web GitHub thi sua dung 2 dong 84-85 cua
+app/src/main/java/vn/herotran/tvcontrol/WatchLog.java thanh
+sb.append("\n"); la du).

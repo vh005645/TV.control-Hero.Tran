@@ -1,0 +1,35 @@
+TV Guard - App 1 - v1.29 - GUI TIN NHAN + AM LUONG TV
+=========================================================
+1) GUI TIN NHAN LEN MAN HINH TV (che do dien thoai)
+- Card moi "GUI TIN NHAN LEN MAN HINH TV", dat DUOI card Am luong TV
+  va TREN card Gui anh len man hinh TV.
+- O nhap nhieu dong, gioi han 300 ky tu (android:maxLength="300"),
+  co bo dem "0/300" cap nhat khi go.
+- Nut "Gui tin nhan" -> lenh showmsg (kem text) qua Firebase /cmd.json.
+  Nut "An tin nhan" -> lenh hidemsg (phong khi khong co dieu khien).
+- TV hien tin nhan toan man hinh: nen mo, chu trang to, kem dong
+  "Bam Back hoac Home de tat tin nhan" o duoi.
+- Thoat: chi can bam Back hoac Home tren dieu khien TV -> TvService
+  chan 2 phim nay o onKeyEvent (dich vu Tro nang da co
+  flagRequestFilterKeyEvents) va tat lop tin nhan, KHONG thoat app
+  dang xem, KHONG ve Home. Cac phim khac (am luong, mui ten...)
+  van di qua binh thuong khi tin nhan dang hien.
+- Trang thai TV (status.json) them "msg": dien thoai hien dong
+  "Dang hien thi tin nhan"; man hinh TV cung hien dong nay.
+- Neu TV dang KHOA (lop khoa dang phu), tin nhan se nam sau lop khoa;
+  bam Back/Home van tat duoc tin nhan.
+
+2) AM LUONG TV (che do dien thoai)
+- Card moi "AM LUONG TV" voi 2 nut "Tang am luong" / "Giam am luong",
+  dat TREN khu vuc Dieu Khien Tuc Thi (cung la tren card Tin nhan).
+- Lenh volup / voldn -> TV dung AudioManager.adjustStreamVolume(
+  STREAM_MUSIC, ADJUST_RAISE/LOWER, FLAG_SHOW_UI) nen thanh am luong
+  he thong cua TV cung hien len. Van chay duoc ca khi TV dang khoa.
+
+3) TRANG THAI TV: DA XOA dong "Phim cuoi bi chan khi khoa: ..."
+   cho gon khu vuc nay (TV van day "key" len Firebase, chi khong
+   hien nua).
+
+Thu tu card moi tren dien thoai: Trang thai TV -> Chup man hinh TV
+-> Hen gio -> AM LUONG TV -> GUI TIN NHAN -> Gui anh -> Dieu Khien
+Tuc Thi -> Icon app TV -> Nhat ky xem TV hom nay -> Cai dat.

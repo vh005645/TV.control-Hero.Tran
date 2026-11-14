@@ -33,12 +33,13 @@ public class TvService extends AccessibilityService {
     static volatile long beat = 0;                 // moi lan vong lap Firebase "con song" (elapsedRealtime)
     static volatile TvService inst;
     static volatile String powerMsg = "";   // ket qua lan tat nguon / kiem tra ADB gan nhat
+    static volatile boolean msgOn = false;       // dang hien thi tin nhan tren man hinh TV
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private volatile boolean running = false;
     private final java.util.concurrent.atomic.AtomicInteger gen = new java.util.concurrent.atomic.AtomicInteger();
     private WindowManager wm;
-    private View lockView, imgView;
+    private View lockView, imgView, msgView;
     private String shownMode = "";
     private long shutdownDue = 0, lastShutdownTry = 0;
     private volatile boolean shutting = false;
@@ -85,6 +86,12 @@ public class TvService extends AccessibilityService {
     // Khi dang KHOA: vo hieu hoa moi phim cua dieu khien, chi cho nut Nguon
     @Override
     protected boolean onKeyEvent(KeyEvent e) {
+        // Tin nhan dang hien: Back / Home -> tat tin nhan (khong thoat app dang xem, khong ve Home)
+        if (msgView != null && e.getAction() == KeyEvent.ACTION_DOWN
+                && (e.getKeyCode() == KeyEvent.KEYCODE_BACK || e.getKeyCode() == KeyEvent.KEYCODE_HOME)) {
+            ui.post(this::hideMessage);
+            return true;
+        }
         if (!Cfg.sp(this).getBoolean("locked", false)) return false;
         if (e.getAction() == KeyEvent.ACTION_DOWN) lastKey = KeyEvent.keyCodeToString(e.getKeyCode());
         switch (e.getKeyCode()) {
@@ -116,7 +123,7 @@ public class TvService extends AccessibilityService {
         running = false;
         gen.incrementAndGet();
         connected = false;
-        ui.post(() -> { hideLock(); hideImage(); });
+        ui.post(() -> { hideLock(); hideImage(); hideMessage(); });
         return super.onUnbind(i);
     }
 
@@ -185,6 +192,7 @@ public class TvService extends AccessibilityService {
         o.put("pw", powerMsg);
         o.put("mode", normMode(sp.getString("mode", "black")));
         o.put("img", imgView != null);
+        o.put("msg", msgView != null);
         o.put("hidden", Cfg.iconHidden(this));
         o.put("key", lastKey);
         Net.put(base + "/status.json", o.toString());
@@ -225,6 +233,20 @@ public class TvService extends AccessibilityService {
             }
             case "hideimg":
                 ui.post(this::hideImage);
+                break;
+            case "showmsg": {
+                final String text = c.optString("text", "");
+                if (!text.isEmpty()) ui.post(() -> showMessage(text));
+                break;
+            }
+            case "hidemsg":
+                ui.post(this::hideMessage);
+                break;
+            case "volup":
+                adjustVolume(AudioManager.ADJUST_RAISE);
+                break;
+            case "voldn":
+                adjustVolume(AudioManager.ADJUST_LOWER);
                 break;
             case "hideicon":
                 Cfg.setIconHidden(this, true);
@@ -457,5 +479,53 @@ public class TvService extends AccessibilityService {
             try { wm.removeView(imgView); } catch (Exception e) { }
             imgView = null;
         }
+    }
+
+    // ---------- tin nhan len man hinh ----------
+    // Hien tin nhan toan man hinh, nen mo, chu to. Cac phim khac (am luong, mui ten...)
+    // van di qua binh thuong; chi Back / Home moi tat tin nhan (xu ly o onKeyEvent).
+    private void showMessage(String text) {
+        hideMessage();
+        FrameLayout f = new FrameLayout(this);
+        f.setBackgroundColor(0xDD000000);
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(Color.WHITE);
+        t.setTextSize(34);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(64, 64, 64, 64);
+        f.addView(t, new FrameLayout.LayoutParams(-1, -1));
+        TextView hint = new TextView(this);
+        hint.setText("Bấm Back hoặc Home để tắt tin nhắn");
+        hint.setTextColor(0xFF94A3B8);
+        hint.setTextSize(16);
+        hint.setGravity(Gravity.CENTER_HORIZONTAL);
+        hint.setPadding(0, 0, 0, 48);
+        FrameLayout.LayoutParams hintLp = new FrameLayout.LayoutParams(-1, -1);
+        hintLp.gravity = Gravity.BOTTOM;
+        f.addView(hint, hintLp);
+        try {
+            wm.addView(f, overlayParams());
+            msgView = f;
+            msgOn = true;
+        } catch (Exception e) {
+            lastMsg = "Overlay lỗi: " + e.getMessage();
+        }
+    }
+
+    private void hideMessage() {
+        if (msgView != null) {
+            try { wm.removeView(msgView); } catch (Exception e) { }
+            msgView = null;
+        }
+        msgOn = false;
+    }
+
+    // ---------- am luong TV ----------
+    private void adjustVolume(int dir) {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, AudioManager.FLAG_SHOW_UI);
+        } catch (Exception e) { }
     }
 }

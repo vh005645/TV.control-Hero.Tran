@@ -7,7 +7,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -29,7 +31,8 @@ import java.util.Locale;
 public class ParentActivity extends Activity {
     static final int PICK_LOCK = 1, PICK_SEND = 2;
     private final Handler h = new Handler(Looper.getMainLooper());
-    private EditText codeEt, minEt, secEt, urlEt;
+    private EditText codeEt, minEt, secEt, urlEt, msgEt;
+    private TextView msgCountTv;
     private TextView urlTv, codeTv;
     private TextView statusTv, msgTv, watchlogTv;
     private ImageView shotIv;
@@ -55,6 +58,13 @@ public class ParentActivity extends Activity {
         urlEt = findViewById(R.id.urlEt);
         codeEt = findViewById(R.id.codeEt);
         modeRg = findViewById(R.id.modeRg);
+        msgEt = findViewById(R.id.msgEt);
+        msgCountTv = findViewById(R.id.msgCountTv);
+        msgEt.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) { }
+            @Override public void onTextChanged(CharSequence s, int st, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) { msgCountTv.setText(s.length() + "/300"); }
+        });
         cardConfig = findViewById(R.id.cardConfig);
         urlEt.setInputType(InputType.TYPE_CLASS_TEXT);
         codeEt.setInputType(InputType.TYPE_CLASS_TEXT);
@@ -97,6 +107,10 @@ public class ParentActivity extends Activity {
         findViewById(R.id.btnPickLock).setOnClickListener(v -> pick(PICK_LOCK));
         findViewById(R.id.btnPickSend).setOnClickListener(v -> pick(PICK_SEND));
         findViewById(R.id.btnHideImg).setOnClickListener(v -> cmd("hideimg"));
+        findViewById(R.id.btnVolUp).setOnClickListener(v -> cmd("volup"));
+        findViewById(R.id.btnVolDown).setOnClickListener(v -> cmd("voldn"));
+        findViewById(R.id.btnSendMsg).setOnClickListener(v -> sendMsg());
+        findViewById(R.id.btnHideMsg).setOnClickListener(v -> cmd("hidemsg"));
         findViewById(R.id.btnHideIcon).setOnClickListener(v -> cmd("hideicon"));
         findViewById(R.id.btnShowIcon).setOnClickListener(v -> cmd("showicon"));
         findViewById(R.id.btnSwitchMode).setOnClickListener(v -> {
@@ -167,9 +181,20 @@ public class ParentActivity extends Activity {
         send(type, ok, "minutes", min, "mode", mode);
     }
 
+    // Gui tin nhan len man hinh TV (toi da 300 ky tu, gioi han o XML maxLength).
+    // TV hien tin nhan cho den khi bam Back / Home tren dieu khien TV.
+    private void sendMsg() {
+        String text = msgEt.getText().toString().trim();
+        if (text.isEmpty()) { msg("Nhập tin nhắn trước"); return; }
+        send("showmsg", "Đã gửi tin nhắn lên TV", "text", text);
+    }
+
     private void cmd(final String type, final Object... kv) {
         String ok = "Đã gửi lệnh: " + type;
         if ("canceltimer".equals(type)) ok = "Đã hủy hẹn giờ - không giới hạn thời gian xem TV";
+        if ("volup".equals(type)) ok = "Đã tăng âm lượng TV";
+        if ("voldn".equals(type)) ok = "Đã giảm âm lượng TV";
+        if ("hidemsg".equals(type)) ok = "Đã ẩn tin nhắn trên TV";
         send(type, ok, kv);
     }
 
@@ -291,11 +316,10 @@ public class ParentActivity extends Activity {
             b.append(String.format("\nCòn lại: %d phút %02d giây", r / 60, r % 60));
         } else b.append("\nKhông giới hạn thời gian xem TV");
         if (s.optBoolean("img")) b.append("\nĐang hiển thị ảnh của bạn");
+        if (s.optBoolean("msg")) b.append("\nĐang hiển thị tin nhắn");
         // v1.26: da XOA chan Cai dat TV -> khong con dong "Cai dat TV dang duoc MO" nua.
         // Cai dat TV luon mo, khong bi chan.
         if (s.optBoolean("hidden")) b.append("\nIcon app trên TV: đang ẩn");
-        String k = s.optString("key", "");
-        if (!k.isEmpty()) b.append("\nPhím cuối bị chặn khi khóa: ").append(k);
         return b.toString();
     }
 

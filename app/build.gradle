@@ -10,8 +10,8 @@ android {
         applicationId 'vn.herotran.tvcontrol'
         minSdk 30
         targetSdk 34
-        versionCode 28
-        versionName '1.27'
+        versionCode 30
+        versionName '1.29'
     }
     // Khoa ky CO DINH (luu trong repo): moi lan build tren GitHub deu cung chu ky,
     // nen cai de (adb install -r) khong can go app, khong mat quyen/cai dat.

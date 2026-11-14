@@ -1,0 +1,45 @@
+TV Guard - App 1 - v1.27 - DOI PACKAGE NAME (ten goi)
+=====================================================
+Package cu: com.tvguard.app  ->  Package moi: vn.herotran.tvcontrol
+( = package cua app 2 - TVControlCloud )
+
+Da doi o:
+- app/build.gradle: namespace + applicationId = vn.herotran.tvcontrol
+- Tat ca file Java: package vn.herotran.tvcontrol + thu muc
+  app/src/main/java/vn/herotran/tvcontrol/
+- assets/tvguardwatch.sh: APP=vn.herotran.tvcontrol va pattern
+  "Force stopping vn.herotran.tvcontrol" (bo canh nhan dien app qua
+  package, khong doi la no khong canh app moi).
+- KeepService.ACTION_WATCHDOG = "vn.herotran.tvcontrol.WATCHDOG"
+- Cac cau lenh ADB trong comment / README / man hinh TV
+  (vd: adb shell am start -n vn.herotran.tvcontrol/.MainActivity)
+- versionCode 28, versionName 1.27 (app 2 dang la versionCode 6
+  nen khong bi loi ha version khi cai de - nhung xem luu y chu ky ben duoi).
+
+GIU NGUYEN, KHONG DOI:
+- Khoa ky: van file tvguard.keystore trong repo (alias/pass nhu cu).
+- Ten file tvguardwatch.sh, duong dan /data/local/tmp/tvguard_*,
+  ten thread / log "tvguard..." (nickname noi bo, khong phai package).
+- Toan bo chuc nang v1.26 (giao dien giong app 2, bo chan Cai dat TV,
+  bo Cong them, man hinh khoa "Het gio xem TV !", Nhat ky xem TV hom nay,
+  Chup man hinh TV len dau...). Xem GHI_CHU_THAY_DOI_v1.26.txt.
+
+QUAN TRONG - DOC TRUOC KHI CAI:
+1) Cung package = KHONG CAI CHUNG voi app 2 duoc. Tren 1 may chi co
+   1 app mang package vn.herotran.tvcontrol.
+2) PHAI GO APP 2 TRUOC (adb uninstall vn.herotran.tvcontrol) roi moi cai
+   ban nay. Ly do: app 1 ky bang tvguard.keystore trong repo, app 2
+   build debug ky bang khoa debug mac dinh -> KHAC CHU KY. Cai de len
+   app 2 ma khong go se bao loi INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+3) Package moi = app moi hoan toan tren may: DU LIEU CU KHONG CHUYEN
+   SANG. Sau khi cai phai cau hinh lai tu dau: chon che do (TV / dien
+   thoai), nhap lai URL Firebase + ma TV, cap lai quyen qua ADB
+   (WRITE_SECURE_SETTINGS), bam lai "Kiem tra quyen tat nguon",
+   bat lai dich vu Tro nang, dat lai hen gio.
+4) Neu ban dung App Drawer / Projectivy goi truc tiep thanh phan
+   com.tvguard.app/.BootTrigger thi doi thanh
+   vn.herotran.tvcontrol/.BootTrigger.
+5) Ghep noi Firebase KHONG DOI: van cung URL + cung ma TV, node
+   /watchlog.json dung chung.
+6) Zip nay khong co .github/gradlew (nhu ban goc) - workflow tren
+   GitHub cua ban cu dung nhu cu de build.

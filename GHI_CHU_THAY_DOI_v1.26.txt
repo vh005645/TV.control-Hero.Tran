@@ -1,0 +1,84 @@
+TV Guard - App 1 (TV-Redmi-Control) - v1.26 - GHI CHU THAY DOI
+================================================================
+Goc: app 1 (TV-Redmi-Control, v1.25) + lay GIAO DIEN tu app 2 (TVControlCloud).
+Chuc nang app 1 GIU NGUYEN (lenh minutes/mode/id, status ts/endAt/remain,
+chup man hinh qua shotid.json, gui anh qua img.json/lockimg.json,
+tat nguon ADB noi bo, bo canh nut nguon, KeepService, WakeJob, BootReceiver...).
+
+1) GIAO DIEN MOI (giong app 2)
+- Nen toi #0b0e14, card bo tron (drawable/card_bg.xml), nut bo tron
+  (btn_primary / btn_secondary / btn_danger), o nhap input_bg.
+- Bo toan bo UI tao bang code (LinearLayout/Button tao trong Java).
+  3 man hinh gio la file XML:
+  res/layout/activity_main.xml (chon che do)
+  res/layout/activity_parent.xml (dien thoai phu huynh)
+  res/layout/activity_tv.xml (TV)
+- styles.xml: them AppTheme (Theme.DeviceDefault.NoActionBar, nen #0b0e14),
+  AndroidManifest dung @style/AppTheme. ShimTheme (BootTrigger) giu nguyen.
+- versionCode 27, versionName 1.26.
+
+2) CHE DO TV (TvActivity)
+- XOA phan "Nhat ky khoi dong" khoi man hinh TV.
+  (Cfg.log() van chay nen de chan doan, chi khong hien nua.)
+- XOA nut "Chan Cai dat TV" (xem muc 4).
+- CHAY NEN KHI THU NHO - da kiem tra lai, ON:
+  * Nut "Thu nho app" va phim Back chi goi moveTaskToBack(true),
+    KHONG finish()/finishAndRemoveTask() (finish se bi he thong coi nhu
+    vuot xoa da nhiem va dung luon dich vu).
+  * Truoc khi thu nho: Cfg.ensureService() + KeepService.start()
+    de dich vu foreground giu TvService song.
+  * KeepService (START_STICKY, foreground) + WakeJob + BootReceiver giu app
+    song khi TV tat/bat lai; KeepService tu tao lai vong lap Firebase neu
+    treo > 60 giay; SCREEN_ON -> restartLoop (khong mo app).
+  * Khi TV vua bat, TvActivity tu mo o che do thu nho (minimize) nhu cu.
+
+3) CHE DO DIEN THOAI (ParentActivity)
+- Nut bam xep theo hang 2 cot (Khoa/Mo khoa, Chon anh/Gui - An anh,
+  An icon/Hien icon), padding gon (20dp), card CAI DAT thu gon duoc
+  (nut CAI DAT tren header) de tiet kiem khong gian hien thi.
+- CHUP MAN HINH TV dua len dau: card CHUP MAN HINH TV la card hanh dong
+  dau tien ngay sau card TRANG THAI TV.
+- Them card NHAT KY XEM TV HOM NAY (xem muc 5).
+
+4) BAO VE TV - DA XOA 3 PHAN, CAI DAT TV LUON MO
+- Da xoa khoi ParentActivity: "Mo Cai dat TV 10 phut", "Chan Cai dat TV",
+  "Tat chan Cai dat TV (mo tu do)".
+- Da xoa khoi TvActivity: nut "Chan Cai dat TV: DANG BAT/TAT...".
+- Da xoa khoi TvService: lenh "allowsettings", ham isProtected(),
+  toan bo logic bam HOME khi mo Cai dat / PackageInstaller /
+  PermissionController. onAccessibilityEvent chi con: khoa (neu dang khoa)
+  + nhan dien tro ly giong noi.
+- Da xoa khoi MainActivity: extra ADB guard_settings / allow_min.
+- Da xoa khoi status: truong "allow" va dong "Cai dat TV dang duoc MO".
+- Ket qua: Cai dat TV luon mo, khong bi chan gi ca.
+
+5) NHAT KY XEM TV HOM NAY - MOI (WatchLog.java)
+- File moi: app/src/main/java/com/tvguard/app/WatchLog.java
+- TV day su kien len Firebase node /watchlog.json:
+  {"date":"2026-11-14","events":[{"t":"08:12","kind":"open"},...]}
+  * "open": khi dich vu Tro nang ket noi (TvService.onServiceConnected),
+    khi man hinh sang lai (KeepService SCREEN_ON).
+  * "close": khi man hinh tat (KeepService SCREEN_OFF),
+    khi sap tat nguon (TvService.powerOff()).
+  * Chong ghi trung: cung loai su kien trong 60 giay thi bo qua.
+    Qua ngay moi tu xoa danh sach cu, chi giu 60 su kien gan nhat.
+- Dien thoai doc /watchlog.json moi 4 giay (cung vong poller status)
+  va hien trong card NHAT KY XEM TV HOM NAY, dang:
+  08:12 - Mo TV
+  12:30 - Tat TV
+  (neu chua co: "Hom nay chua co lich su Mo / Tat TV").
+
+6) KHI HET GIO
+- Da BO che do "Cong them" (addtime): bo nut "Cong them" o ParentActivity,
+  bo case "addtime" o TvService. Chi con "Dat gio" / "Huy hen gio".
+- Khi het gio o che do MAN HINH DEN: man hinh khoa hien dung chu:
+  "Het gio xem TV !"
+  (che do Tat nguon TV giu nguyen cau cu:
+  "Bo & Me tat TV ! / Het thoi gian xem TV roi nhe cac con";
+  che do Khung anh hien anh da chon nhu cu.)
+
+CACH BUILD (nhu cu): mo bang Android Studio hoac chay tren GitHub Actions,
+cai de bang adb install -r (khoa ky co dinh trong repo, khong mat cai dat).
+Luu y: vi them node /watchlog.json nen TV va dien thoai deu phai cai ban
+v1.26 nay thi card Nhat ky moi co du lieu; TV cu van chay tot neu chi cai
+dien thoai moi (card se hien "chua co lich su").

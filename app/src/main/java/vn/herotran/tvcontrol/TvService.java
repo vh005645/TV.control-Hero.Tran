@@ -1,0 +1,461 @@
+package vn.herotran.tvcontrol;
+
+import android.accessibilityservice.AccessibilityService;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.media.AudioManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Base64;
+import android.view.Display;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.view.accessibility.AccessibilityEvent;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
+import org.json.JSONObject;
+import java.io.File;
+import java.io.FileOutputStream;
+
+public class TvService extends AccessibilityService {
+    static volatile boolean connected = false;
+    static volatile String lastMsg = "";
+    static volatile String lastKey = "";
+    static volatile long lastOk = 0;
+    static volatile long beat = 0;                 // moi lan vong lap Firebase "con song" (elapsedRealtime)
+    static volatile TvService inst;
+    static volatile String powerMsg = "";   // ket qua lan tat nguon / kiem tra ADB gan nhat
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private volatile boolean running = false;
+    private final java.util.concurrent.atomic.AtomicInteger gen = new java.util.concurrent.atomic.AtomicInteger();
+    private WindowManager wm;
+    private View lockView, imgView;
+    private String shownMode = "";
+    private long shutdownDue = 0, lastShutdownTry = 0;
+    private volatile boolean shutting = false;
+    private final Runnable hideImgR = this::hideImage;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        connected = true;
+        Cfg.log(this, "Dịch vụ trợ năng đã kết nối");
+        KeepService.start(this);
+        WatchLog.pushEvent(this, "open");   // TV vua mo / dich vu vua ket noi -> ghi Nhat ky xem TV hom nay
+        // Vua bat TV (may moi khoi dong < 10 phut): dich vu duoc he thong bat -> tu mo app o che do thu nho
+        if (android.os.SystemClock.elapsedRealtime() < 10 * 60 * 1000L) Cfg.autoLaunch(this, false);
+        Cfg.selfGrant(this);
+        // moi lan ket noi tao 1 vong lap moi, vong lap cu (neu con) tu thoat -> khong bao gio chay 2 vong cung luc
+        inst = this;
+        restartLoop();
+    }
+
+    // v1.26: da XOA chan Cai dat TV -> Cai dat TV luon mo, khong chan bat ky goi nao.
+    // Chi con: khoa (neu dang khoa) + nhan dien tro ly giong noi = tin hieu "TV vua bat".
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        if (Cfg.sp(this).getBoolean("locked", false)) ui.post(this::applyLock);
+        CharSequence pk = e.getPackageName();
+        if (pk != null && VOICE_PKG.contentEquals(pk)) onVoiceShown();
+    }
+
+    // Tro ly giong noi cua TV luon hien khi bat TV -> dung lam tin hieu "TV vua bat" de khoi phuc + mo app thu nho
+    private static final String VOICE_PKG = "com.xiaomi.mitv.voicecontrol";
+    private static long lastVoice = 0, lastVoiceLaunch = 0;
+
+    private void onVoiceShown() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastVoice != 0 && now - lastVoice < 60000) return;     // toi da 1 lan/phut
+        lastVoice = now;
+        Cfg.log(this, "Trợ lý giọng nói hiện (" + VOICE_PKG + ") -> khôi phục");
+        Cfg.recover(this, "voice");
+    }
+
+    // Khi dang KHOA: vo hieu hoa moi phim cua dieu khien, chi cho nut Nguon
+    @Override
+    protected boolean onKeyEvent(KeyEvent e) {
+        if (!Cfg.sp(this).getBoolean("locked", false)) return false;
+        if (e.getAction() == KeyEvent.ACTION_DOWN) lastKey = KeyEvent.keyCodeToString(e.getKeyCode());
+        switch (e.getKeyCode()) {
+            case KeyEvent.KEYCODE_POWER:
+            case KeyEvent.KEYCODE_TV_POWER:
+            case KeyEvent.KEYCODE_STB_POWER:
+            case KeyEvent.KEYCODE_SLEEP:
+            case KeyEvent.KEYCODE_WAKEUP:
+            case KeyEvent.KEYCODE_SOFT_SLEEP:
+                return false;
+            default:
+                return true;
+        }
+    }
+    @Override public void onInterrupt() { }
+
+    @Override
+    public void onDestroy() {
+        if (inst == this) inst = null;
+        running = false;
+        connected = false;
+        gen.incrementAndGet();
+        super.onDestroy();
+    }
+
+    @Override
+    public boolean onUnbind(Intent i) {
+        if (inst == this) inst = null;
+        running = false;
+        gen.incrementAndGet();
+        connected = false;
+        ui.post(() -> { hideLock(); hideImage(); });
+        return super.onUnbind(i);
+    }
+
+    // ---------- vong lap nen: hoi lenh tu Firebase moi 2 giay ----------
+    // Tao vong lap moi (vong cu, neu con, tu thoat o lan lap sau). Dung khi vong lap bi treo hoac TV vua bat lai.
+    void restartLoop() {
+        final int my = gen.incrementAndGet();
+        running = true;
+        beat = android.os.SystemClock.elapsedRealtime();
+        new Thread(() -> loop(my), "tvguard").start();
+    }
+
+    private void loop(final int my) {
+        int tick = 0;
+        while (running && gen.get() == my) {
+            SharedPreferences sp = Cfg.sp(this);
+            beat = android.os.SystemClock.elapsedRealtime();
+            try {
+                // Hen gio chay cuc bo, khong phu thuoc mang (rut day mang van bi khoa)
+                checkTimer(sp);
+                if (!Cfg.urlOk(this)) {
+                    lastMsg = "Chưa cấu hình URL Firebase (xem hướng dẫn)";
+                } else {
+                    String base = Cfg.dbUrl(this) + "/tv/" + Cfg.tvCode(this);
+                    JSONObject cmd = Net.getObj(base + "/cmd.json");
+                    if (!sp.contains("lastId")) {
+                        sp.edit().putLong("lastId", cmd != null ? cmd.optLong("id") : 0).apply();
+                    } else if (cmd != null) {
+                        long id = cmd.optLong("id");
+                        if (id != sp.getLong("lastId", 0)) {
+                            sp.edit().putLong("lastId", id).apply();
+                            handle(cmd, base);
+                        }
+                    }
+                    checkTimer(sp);
+                    beat = android.os.SystemClock.elapsedRealtime();
+                    if (tick % 3 == 0) pushStatus(base, sp);
+                    lastMsg = "Kết nối OK";
+                    lastOk = System.currentTimeMillis();
+                }
+            } catch (Exception e) {
+                lastMsg = "Lỗi: " + Net.explain(e);
+            }
+            ui.post(this::applyLock);
+            tick++;
+            try { Thread.sleep(2000); } catch (InterruptedException ie) { break; }
+        }
+    }
+
+    private void checkTimer(SharedPreferences sp) {
+        long end = sp.getLong("endAt", 0);
+        if (end > 0 && System.currentTimeMillis() >= end && !sp.getBoolean("locked", false)) {
+            sp.edit().putBoolean("locked", true).putLong("endAt", 0).apply();
+        }
+    }
+
+    private void pushStatus(String base, SharedPreferences sp) throws Exception {
+        long now = System.currentTimeMillis();
+        long end = sp.getLong("endAt", 0);
+        JSONObject o = new JSONObject();
+        o.put("ts", now);
+        o.put("locked", sp.getBoolean("locked", false));
+        o.put("timer", end > 0);
+        o.put("remain", end > now ? (end - now) / 1000 : 0);
+        o.put("endAt", end > now ? end : 0);
+        o.put("pw", powerMsg);
+        o.put("mode", normMode(sp.getString("mode", "black")));
+        o.put("img", imgView != null);
+        o.put("hidden", Cfg.iconHidden(this));
+        o.put("key", lastKey);
+        Net.put(base + "/status.json", o.toString());
+    }
+
+    private void handle(JSONObject c, String base) throws Exception {
+        SharedPreferences sp = Cfg.sp(this);
+        String type = c.optString("type");
+        String mode = normMode(c.optString("mode", sp.getString("mode", "black")));
+        long now = System.currentTimeMillis();
+        switch (type) {
+            case "settimer": {
+                long min = c.optLong("minutes", 60);
+                sp.edit().putLong("endAt", now + min * 60000L).putBoolean("locked", false).putString("mode", mode).apply();
+                break;
+            }
+            case "canceltimer":
+                // Huy hen gio = khong gioi han thoi gian xem TV (neu dang khoa do het gio thi mo khoa luon)
+                sp.edit().putLong("endAt", 0).putBoolean("locked", false).apply();
+                break;
+            case "lock":
+                sp.edit().putBoolean("locked", true).putLong("endAt", 0).putString("mode", mode).apply();
+                break;
+            case "unlock":
+                sp.edit().putBoolean("locked", false).putLong("endAt", 0).apply();
+                break;
+            case "shot":
+                takeShot(base, c.optLong("id"));
+                break;
+            case "showimg": {
+                JSONObject o = Net.getObj(base + "/img.json");
+                if (o != null) {
+                    final Bitmap b = ImgUtil.fromB64(o.getString("data"));
+                    final int sec = c.optInt("seconds", 30);
+                    ui.post(() -> showImage(b, sec));
+                }
+                break;
+            }
+            case "hideimg":
+                ui.post(this::hideImage);
+                break;
+            case "hideicon":
+                Cfg.setIconHidden(this, true);
+                break;
+            case "showicon":
+                Cfg.setIconHidden(this, false);
+                break;
+            case "lockimg": {
+                JSONObject o = Net.getObj(base + "/lockimg.json");
+                if (o != null) {
+                    byte[] d = Base64.decode(o.getString("data"), Base64.DEFAULT);
+                    FileOutputStream f = new FileOutputStream(new File(getFilesDir(), "lock.jpg"));
+                    f.write(d);
+                    f.close();
+                    ui.post(() -> { if (lockView != null) hideLock(); });
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    // ---------- chup man hinh (Android 11+) ----------
+    private void takeShot(final String base, final long id) {
+        takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), new TakeScreenshotCallback() {
+            @Override
+            public void onSuccess(ScreenshotResult r) {
+                Bitmap hw = Bitmap.wrapHardwareBuffer(r.getHardwareBuffer(), r.getColorSpace());
+                Bitmap sw = hw == null ? null : hw.copy(Bitmap.Config.ARGB_8888, false);
+                r.getHardwareBuffer().close();
+                upload(base, id, sw, 0);
+            }
+
+            @Override
+            public void onFailure(int errorCode) {
+                upload(base, id, null, errorCode);
+            }
+        });
+    }
+
+    private void upload(final String base, final long id, final Bitmap b, final int err) {
+        new Thread(() -> {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("id", id);
+                if (b != null) o.put("data", ImgUtil.toB64(b, 1280, 60));
+                else o.put("err", err);
+                Net.put(base + "/shot.json", o.toString());
+                Net.put(base + "/shotid.json", String.valueOf(id));
+            } catch (Exception e) {
+                lastMsg = "Lỗi gửi ảnh: " + e.getMessage();
+            }
+        }).start();
+    }
+
+    // ---------- khoa man hinh ----------
+    // Phien ban cu luu mode "sleep" (tat man hinh) -> nay la "shutdown" (tat nguon TV)
+    static String normMode(String m) { return "sleep".equals(m) ? "shutdown" : m; }
+
+    private void applyLock() {
+        SharedPreferences sp = Cfg.sp(this);
+        boolean locked = sp.getBoolean("locked", false);
+        String mode = normMode(sp.getString("mode", "black"));
+        if (locked) {
+            if (lockView == null || !mode.equals(shownMode)) {
+                showLock(mode);
+                // Cho ~8 giay truoc khi tat nguon de kip nhan lenh "Mo khoa" dang cho tren Firebase
+                if ("shutdown".equals(mode) && shutdownDue == 0) shutdownDue = System.currentTimeMillis() + 8000;
+            } else {
+                lockView.requestFocus();
+            }
+            mute(true);
+            if ("shutdown".equals(mode)) maybeShutdown();
+        } else {
+            shutdownDue = 0;
+            if (Cfg.poweringOff) return;     // dang tat nguon: giu lop khoa den khi TV tat (tranh nhay hinh)
+            if (lockView != null) {
+                hideLock();
+                mute(false);
+            }
+        }
+    }
+
+    // ---------- tat nguon TV ----------
+    private void maybeShutdown() {
+        long now = System.currentTimeMillis();
+        if (shutting || now < shutdownDue || now - lastShutdownTry < 30000) return;
+        lastShutdownTry = now;
+        shutting = true;
+        new Thread(() -> {
+            try { powerOff(); } finally { shutting = false; }
+        }, "tvguard-off").start();
+    }
+
+    // Cach 1: ADB noi bo chay "reboot -p" (tat nguon that), neu khong duoc thi gia lap phim Nguon.
+    // Cach 2 (du phong, neu TV van con bat sau 15 giay hoac ADB loi): khoa man hinh / dua TV vao che do cho.
+    private void powerOff() {
+        WatchLog.pushEvent(this, "close");   // TV sap tat nguon -> ghi Nhat ky xem TV hom nay
+        boolean sent = false;
+        // Mo khoa che do "Tat nguon" TRUOC khi tat, va bao trang thai "da mo khoa" len Firebase
+        final boolean cleared = Cfg.clearShutdownLock(this);
+        if (cleared) {
+            try {
+                Thread t = new Thread(() -> {
+                    try {
+                        if (Cfg.urlOk(this)) pushStatus(Cfg.dbUrl(this) + "/tv/" + Cfg.tvCode(this), Cfg.sp(this));
+                    } catch (Exception e) { }
+                }, "tvguard-lastpush");
+                t.start();
+                t.join(3000);
+            } catch (Exception e) { }
+        }
+        try {
+            AdbLocal.exec(getFilesDir(), 5555, "reboot -p || input keyevent 26");
+            Cfg.sp(this).edit().putBoolean("adbOk", true).apply();
+            powerMsg = "Đã gửi lệnh tắt nguồn (ADB nội bộ) lúc " + new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()) + " [" + AdbLocal.lastKeyInfo + "]";
+            sent = true;
+        } catch (Exception e) {
+            powerMsg = "Tắt nguồn bằng ADB lỗi: " + AdbLocal.explain(e) + " [" + AdbLocal.lastKeyInfo + "]";
+        }
+        if (sent) {
+            try { Thread.sleep(15000); } catch (InterruptedException ie) { return; }
+        }
+        // TV van chay -> tat nguon that bai: dat lai khoa de thu lai
+        if (cleared) Cfg.restoreShutdownLock(this);
+        ui.post(() -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN));
+    }
+
+    private void mute(boolean m) {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                    m ? AudioManager.ADJUST_MUTE : AudioManager.ADJUST_UNMUTE, 0);
+        } catch (Exception e) { }
+    }
+
+    private WindowManager.LayoutParams overlayParams() {
+        return new WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT);
+    }
+
+    // Lop phu KHOA: nhan tieu diem ban phim nen moi phim (Back, OK, mui ten...) deu vao day, khong toi app ben duoi
+    private WindowManager.LayoutParams lockParams() {
+        return new WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT);
+    }
+
+    private void showLock(String mode) {
+        hideLock();
+        final FrameLayout f = new FrameLayout(this);
+        f.setBackgroundColor(Color.BLACK);
+        f.setFocusable(true);
+        f.setFocusableInTouchMode(true);
+        f.setOnKeyListener((v, code, ev) -> true);
+        boolean has = false;
+        if ("image".equals(mode)) {
+            File ff = new File(getFilesDir(), "lock.jpg");
+            if (ff.exists()) {
+                Bitmap b = BitmapFactory.decodeFile(ff.getPath());
+                if (b != null) {
+                    ImageView iv = new ImageView(this);
+                    iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                    iv.setImageBitmap(b);
+                    f.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+                    has = true;
+                }
+            }
+        }
+        if (!has) {
+            TextView t = new TextView(this);
+            t.setText("shutdown".equals(mode)
+                    ? "Bố & Mẹ tắt TV !\nHết thời gian xem TV rồi nhé các con"
+                    : "Hết giờ xem TV !");
+            t.setTextColor(Color.WHITE);
+            t.setTextSize(44);
+            t.setGravity(Gravity.CENTER);
+            f.addView(t, new FrameLayout.LayoutParams(-1, -1));
+        }
+        try {
+            wm.addView(f, lockParams());
+            lockView = f;
+            shownMode = mode;
+            f.requestFocus();
+            f.post(f::requestFocus);
+        } catch (Exception e) {
+            lastMsg = "Overlay lỗi: " + e.getMessage();
+        }
+    }
+
+    private void hideLock() {
+        if (lockView != null) {
+            try { wm.removeView(lockView); } catch (Exception e) { }
+            lockView = null;
+            shownMode = "";
+        }
+    }
+
+    // ---------- anh de len man hinh ----------
+    private void showImage(Bitmap b, int sec) {
+        hideImage();
+        if (b == null) return;
+        FrameLayout f = new FrameLayout(this);
+        f.setBackgroundColor(Color.BLACK);
+        ImageView iv = new ImageView(this);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        iv.setImageBitmap(b);
+        f.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+        try {
+            wm.addView(f, overlayParams());
+            imgView = f;
+        } catch (Exception e) {
+            lastMsg = "Overlay lỗi: " + e.getMessage();
+        }
+        if (sec > 0) ui.postDelayed(hideImgR, sec * 1000L);
+    }
+
+    private void hideImage() {
+        ui.removeCallbacks(hideImgR);
+        if (imgView != null) {
+            try { wm.removeView(imgView); } catch (Exception e) { }
+            imgView = null;
+        }
+    }
+}

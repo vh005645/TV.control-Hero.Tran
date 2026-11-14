@@ -1,0 +1,8 @@
+TV Guard - App 1 - v1.31 - 2 NUT AM LUONG CUNG MAU
+=========================================================
+- 2 nut "Tang am luong" / "Giam am luong" gio cung mau xam
+  (btn_secondary), giong cap "An icon / Hien icon app TV".
+  Truoc day nut Tang dung mau xanh (btn_primary), nut Giam dung
+  mau xam -> nhin lech nhau.
+
+Khong doi gi khac so voi v1.30.

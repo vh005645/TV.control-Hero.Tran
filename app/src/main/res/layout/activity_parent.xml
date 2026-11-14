@@ -217,6 +217,49 @@
             <TextView
                 android:textSize="12sp"
                 android:textStyle="bold"
+                android:textColor="#10b981"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="ĐIỀU KHIỂN TỨC THÌ"/>
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <Button
+                    android:id="@+id/btnLock"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#ffffff"
+                    android:background="@drawable/btn_danger"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_marginRight="6dp"
+                    android:layout_weight="1"
+                    android:text="Khóa ngay"/>
+                <Button
+                    android:id="@+id/btnUnlock"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#ffffff"
+                    android:background="@drawable/btn_secondary"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_marginLeft="6dp"
+                    android:layout_weight="1"
+                    android:text="Mở khóa"/>
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout
+            android:orientation="vertical"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:textSize="12sp"
+                android:textStyle="bold"
                 android:textColor="#f59e0b"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -330,18 +373,18 @@
                     android:layout_height="48dp"
                     android:layout_marginRight="6dp"
                     android:layout_weight="1"
-                    android:text="Tăng âm lượng"/>
+                    android:text=" + Tăng "/>
                 <Button
                     android:id="@+id/btnVolDown"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textColor="#ffffff"
-                    android:background="@drawable/btn_secondary"
+                    android:background="@drawable/btn_primary"
                     android:layout_width="0dp"
                     android:layout_height="48dp"
                     android:layout_marginLeft="6dp"
                     android:layout_weight="1"
-                    android:text="Giảm âm lượng"/>
+                    android:text=" - Giảm "/>
             </LinearLayout>
         </LinearLayout>
         <LinearLayout
@@ -494,56 +537,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="46dp"
                 android:text="Chọn ảnh làm khung khóa"/>
-        </LinearLayout>
-        <LinearLayout
-            android:orientation="vertical"
-            android:background="@drawable/card_bg"
-            android:padding="16dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
-            <TextView
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="#10b981"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:text="ĐIỀU KHIỂN TỨC THÌ"/>
-            <LinearLayout
-                android:orientation="horizontal"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-                <Button
-                    android:id="@+id/btnLock"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="#ffffff"
-                    android:background="@drawable/btn_danger"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginRight="6dp"
-                    android:layout_weight="1"
-                    android:text="Khóa ngay"/>
-                <Button
-                    android:id="@+id/btnUnlock"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="#ffffff"
-                    android:background="@drawable/btn_secondary"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginLeft="6dp"
-                    android:layout_weight="1"
-                    android:text="Mở khóa"/>
-            </LinearLayout>
-            <TextView
-                android:textSize="12sp"
-                android:textColor="#94a3b8"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Khi đang KHÓA, điều khiển TV bị vô hiệu hóa (chỉ còn nút Nguồn). Chế độ Tắt nguồn TV cần cấp quyền 1 lần trên TV (nút Kiểm tra quyền tắt nguồn)."/>
         </LinearLayout>
         <LinearLayout
             android:orientation="vertical"

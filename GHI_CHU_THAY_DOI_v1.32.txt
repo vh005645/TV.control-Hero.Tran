@@ -1,0 +1,9 @@
+TV Guard - App 1 - v1.32 - NUT AM LUONG XANH + GON CARD DIEU KHIEN TUC THI
+=========================================================
+1) 2 nut am luong: cung mau XANH (btn_primary).
+   - Chu tren nut doi thanh: " + Tang " va " - Giam ".
+2) Card "DIEU KHIEN TUC THI": da XOA dong chu mo ta phia duoi 2 nut
+   ("Khi dang KHOA, dieu khien TV bi vo hieu hoa...").
+   Card chi con 2 nut: Khoa ngay va Mo khoa.
+
+Khong doi gi khac so voi v1.31.

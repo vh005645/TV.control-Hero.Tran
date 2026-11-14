@@ -1,0 +1,11 @@
+TV Guard - App 1 - v1.30 - DOI VI TRI CARD DIEU KHIEN TUC THI
+=========================================================
+- Card "DIEU KHIEN TUC THI" (Khoa ngay / Mo khoa) da duoc doi len:
+  nam TREN card "HEN GIO XEM TV" va DUOI card "CHUP MAN HINH TV".
+- Cac card khac giu nguyen thu tu.
+
+Thu tu card moi tren dien thoai: Trang thai TV -> Chup man hinh TV
+-> DIEU KHIEN TUC THI -> Hen gio -> AM LUONG TV -> GUI TIN NHAN
+-> Gui anh -> Icon app TV -> Nhat ky xem TV hom nay -> Cai dat.
+
+Khong doi logic, khong doi chuc nang.

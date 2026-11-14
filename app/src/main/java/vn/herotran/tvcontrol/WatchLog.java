@@ -81,8 +81,7 @@ public class WatchLog {
         for (int i = 0; i < events.length(); i++) {
             JSONObject e = events.optJSONObject(i);
             if (e == null) continue;
-            if (sb.length() > 0) sb.append("
-");
+        if (sb.length() > 0) sb.append("\n");
             sb.append(e.optString("t", "--:--"));
             sb.append(" - ");
             sb.append("open".equals(e.optString("kind", "")) ? "Mở TV" : "Tắt TV");
